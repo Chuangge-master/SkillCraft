@@ -1,0 +1,11 @@
+[project]
+name = "skillcraft"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=2.14.0",
+    "openai-agents>=0.6.4",
+    "pyyaml>=6.0.3",
+]
