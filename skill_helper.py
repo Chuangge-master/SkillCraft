@@ -1,7 +1,6 @@
 from agents import Agent,Runner,RunResult,OpenAIChatCompletionsModel,set_tracing_disabled
 from openai import AsyncOpenAI
 from skill_loader import SkillLoader
-import os
 
 def create_agent(skill_dir: str, 
                  base_url:str,
@@ -30,17 +29,11 @@ def create_agent(skill_dir: str,
     return agent
 
 def run_agent(agent: Agent, prompt: str) -> RunResult:
+    set_tracing_disabled(True) # 关闭日志
     result = Runner.run_sync(agent, prompt)
     return result
 
 if __name__ == "__main__":
-    set_tracing_disabled(True) # 关闭日志
-    agent = create_agent(base_url='https://api.deepseek.com',
-                 llm_name='deepseek-chat',
-                 api_key='sk-3331653c2df04aafb6b4b4eb484f24d0',
-                 agent_name='Intelligent Assistant',
-                 agent_description='You are an intelligent assistant capable of chatting and calling tools.',
-                 skill_dir='skills')
-    result = run_agent(agent, prompt='帮我查一下北京的天气')
-    print(result.final_output)
+    pass
+    
         
