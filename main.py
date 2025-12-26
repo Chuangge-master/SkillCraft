@@ -12,5 +12,5 @@ if __name__ == "__main__":
                  agent_name='Intelligent Assistant',
                  agent_description='You are an intelligent assistant capable of chatting and calling tools.',
                  skill_dir='skills')
-    result = run_agent(agent, prompt='帮我查一下北京的天气')
+    result = run_agent(agent, prompt='你好，现在的你可以做什么？')
     print(result.final_output)

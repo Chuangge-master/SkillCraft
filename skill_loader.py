@@ -9,8 +9,11 @@ import importlib.util
 import inspect
 
 class Skill:
-    info:str = ''
+    name:str = '',
+    description:str = '',
     tool:Optional[FunctionTool] = None
+    run_by_script: bool = False
+    when_to_use:str = ''
 
 
 
@@ -18,8 +21,23 @@ class SkillLoader:
     def __init__(self, skill_dir:str):
         self.skill_dir = Path(skill_dir)
         self.skills:List[Skill] = []
+        self._skill_cache: Dict[str, Dict[str, Any]] = {}  # 缓存技能信息，key为技能目录名，value包含技能对象和文件修改时间
+    
+    def clear_cache(self):
+        """清空缓存，下次加载将重新加载所有技能"""
+        self._skill_cache.clear()
+        self.skills.clear()
 
-    def load_skills(self):
+    def load_skills(self, force_reload: bool = False):
+        """
+        加载技能，支持缓存机制
+        
+        Args:
+            force_reload: 是否强制重新加载所有技能，忽略缓存
+        """
+        self.skills.clear()
+        updated_skills = []
+        
         for item in self.skill_dir.rglob("*"):
             if not item.is_dir():
                 continue
@@ -29,27 +47,48 @@ class SkillLoader:
             run_path = item / "skill.py"
 
             if not md_path.exists():
-                continue  # 必须有 SKILL.md
-
+                # 如果技能目录存在但没有SKILL.md，移除缓存
+                if skill_name in self._skill_cache:
+                    del self._skill_cache[skill_name]
+                continue
+            
+            # 获取文件修改时间
+            md_mtime = md_path.stat().st_mtime
+            run_mtime = run_path.stat().st_mtime if run_path.exists() else 0
+            current_mtime = max(md_mtime, run_mtime)
+            
+            # 检查缓存是否存在且有效
+            if not force_reload and skill_name in self._skill_cache:
+                cached_info = self._skill_cache[skill_name]
+                if cached_info['mtime'] >= current_mtime:
+                    # 使用缓存的技能
+                    self.skills.append(cached_info['skill'])
+                    continue
+            
+            # 缓存无效或不存在，重新加载技能
             meta_dict = self.parse_skill_md(md_path)
-            # print(json.dumps(meta_dict, indent=2, ensure_ascii=False))
-
             if not meta_dict or 'name' not in meta_dict:
                 print(f"⚠️ SKILL.md in {item} missing 'name' field")
+                if skill_name in self._skill_cache:
+                    del self._skill_cache[skill_name]
                 continue
 
             name = meta_dict['name']
             description = meta_dict.get('description', '')
             when_to_use = meta_dict.get('when_to_use', '')
+            run_by_script = meta_dict.get('run_by_script', False)
+
             skill = Skill()
             desc = description.replace("\n", " ").strip()
-            skill.info += f"- {name}: {desc}\n"
+            skill.name = name
+            skill.description = desc
+            skill.run_by_script = run_by_script
+            skill.when_to_use = when_to_use
             
             if run_path.exists():
                 run_function = self.get_run_function(run_path)
                 run_function_args = self.get_run_function_args(run_path)
-                # print(json.dumps(run_function_args.model_json_schema(), indent=4, ensure_ascii=False))
-
+                
                 tool = FunctionTool(
                     name=name,
                     description=f"{description}\nwhen to use: {when_to_use}",
@@ -57,8 +96,26 @@ class SkillLoader:
                     on_invoke_tool=run_function,
                 )
                 skill.tool = tool
-                
-            self.skills.append(skill)           
+            
+            # 更新缓存
+            self._skill_cache[skill_name] = {
+                'skill': skill,
+                'mtime': current_mtime
+            }
+            
+            self.skills.append(skill)
+            updated_skills.append(skill_name)
+        
+        # 检查是否有技能被删除
+        existing_skills = {item.name for item in self.skill_dir.rglob("*") if item.is_dir() and (item / "SKILL.md").exists()}
+        for cached_skill_name in list(self._skill_cache.keys()):
+            if cached_skill_name not in existing_skills:
+                del self._skill_cache[cached_skill_name]
+        
+        if updated_skills:
+            print(f"🔄 已更新技能: {', '.join(updated_skills)}")
+        else:
+            print("✅ 所有技能已缓存，无需更新")           
 
     def parse_skill_md(self, md_path: Path) -> Optional[Dict[str, Any]]:
         content = md_path.read_text(encoding='utf-8')
