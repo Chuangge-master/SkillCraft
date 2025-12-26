@@ -1,6 +1,12 @@
-from agents import Agent,Runner,RunResult,OpenAIChatCompletionsModel,set_tracing_disabled
+from agents import (Agent, RunResultStreaming,
+    Runner,RunResult,OpenAIChatCompletionsModel,
+    set_tracing_disabled,
+    SQLiteSession,Session)
 from openai import AsyncOpenAI
 from skill_loader import SkillLoader
+from openai.types.responses import ResponseTextDeltaEvent
+import uuid
+import os
 
 def create_agent(skill_dir: str, 
                  base_url:str,
@@ -49,10 +55,53 @@ def create_agent(skill_dir: str,
 
     return agent
 
-def run_agent(agent: Agent, prompt: str) -> RunResult:
+def run_agent(agent: Agent, prompt: str, session_id: str = None) -> RunResult:
     set_tracing_disabled(True) # 关闭日志
-    result = Runner.run_sync(agent, prompt)
+    session = SQLiteSession(session_id, db_path=f"{session_id}.db") if session_id else None
+    result = Runner.run_sync(agent, prompt, session=session)
     return result
+
+async def run_agent_async(agent: Agent, prompt: str, session_id: str = None) -> RunResult:
+    set_tracing_disabled(True) # 关闭日志
+    session = SQLiteSession(session_id, db_path=f"{session_id}.db") if session_id else None
+    result = await Runner.run(agent, prompt, session=session)
+    return result
+
+async def run_agent_stream(agent: Agent, prompt: str, session_id: str = None) -> RunResultStreaming:
+    set_tracing_disabled(True) # 关闭日志
+    session = SQLiteSession(session_id, db_path=f"{session_id}.db") if session_id else None
+    result = Runner.run_streamed(agent, prompt, session=session)
+    return result
+
+async def chat_with_agent(agent: Agent, use_old_session: bool = False) -> None:
+    """
+    与智能助手进行聊天，支持会话上下文。
+    
+    Args:
+        agent: OpenAI Agent
+        use_old_session: 是否使用旧会话上下文，默认False
+    """
+    set_tracing_disabled(True) # 关闭日志
+    # 随机生成会话id
+    session_id = 'chat_session'
+    if not use_old_session and os.path.exists(f"{session_id}.db"):
+        # 检查是否存在旧会话数据库文件，存在则删除
+        os.remove(f"{session_id}.db")
+
+    while True:
+        print(f"AI Agent：你好，我是一个智能助手，我可以聊天，也可以执行一些任务。")
+        prompt = input("你: ")
+        if prompt.lower() == "exit":
+            print(f"AI Agent：再见！")
+            break
+
+        result = await run_agent_stream(agent, prompt, session_id=session_id)
+        async for event in result.stream_events():
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                print(event.data.delta, end="", flush=True)
+        print("\n")
+    
+
 
 if __name__ == "__main__":
     pass
