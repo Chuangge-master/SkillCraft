@@ -4,7 +4,7 @@ import os
 
 def main():
     import dotenv
-    dotenv.load_dotenv()
+    dotenv.load_dotenv('../.env')
     base_url = os.getenv("BASE_URL")
     llm_name = os.getenv("LLM_NAME")
     api_key = os.getenv("API_KEY")

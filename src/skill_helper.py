@@ -113,6 +113,8 @@ def chat(user_input:str,
     for chunk in response:
         token = chunk[0].content
         print(token, end='', flush=True)
+
+    # TODO 多轮对话实现，其中涉及短期记忆和长期记忆
         
 if __name__ == "__main__":
     skills = load_skill(skill_dir='skills')
